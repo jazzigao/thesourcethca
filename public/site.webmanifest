@@ -1,0 +1,17 @@
+{
+  "name": "The Source",
+  "short_name": "The Source",
+  "description": "Discover thoughtfully grown products from The Source.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FF3C00",
+  "theme_color": "#FF3C00",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

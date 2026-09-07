@@ -1,0 +1,707 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: store
+    description: Customer storefront operations
+  - name: commerce
+    description: Cart and order intent operations
+  - name: membership
+    description: Membership and newsletter operations
+  - name: reviews
+    description: Public purchaser reviews and secure purchase verification
+  - name: admin
+    description: Store administration operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /products:
+    get:
+      operationId: listProducts
+      tags: [store]
+      summary: List products
+      responses:
+        "200":
+          description: Available products and upcoming products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+  /storefront-summary:
+    get:
+      operationId: getStorefrontSummary
+      tags: [store]
+      summary: Get storefront summary
+      responses:
+        "200":
+          description: Storefront merchandising summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontSummary"
+  /reviews:
+    get:
+      operationId: listReviews
+      tags: [reviews]
+      summary: List published purchaser reviews
+      responses:
+        "200":
+          description: Published purchaser reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+    post:
+      operationId: submitReview
+      tags: [reviews]
+      summary: Publish a verified purchaser review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "201":
+          description: Review published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "400":
+          description: Invalid review or expired claim
+        "409":
+          description: Review already submitted for this purchase
+  /reviews/claim:
+    post:
+      operationId: claimReview
+      tags: [reviews]
+      summary: Verify a paid Shopify purchase for review eligibility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewClaimInput"
+      responses:
+        "200":
+          description: Secure product-scoped review links
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewClaimResponse"
+        "400":
+          description: Purchase could not be verified
+        "429":
+          description: Too many verification attempts
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [commerce]
+      summary: Create a hosted regulated checkout
+      description: Creates a recoverable Shopify checkout intent before requesting a cart. Reusing the same Idempotency-Key safely replays or resumes the original checkout.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Stable key for retrying the same checkout without creating another cart.
+          schema:
+            type: string
+            maxLength: 255
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Created hosted checkout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "200":
+          description: Previously created checkout replayed by idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          description: Invalid order
+        "409":
+          description: Checkout is already in progress or the idempotency key conflicts with another request
+    get:
+      operationId: listOrders
+      tags: [commerce]
+      summary: List the current member's orders
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Orders belonging to the authenticated member
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrderHistoryItem"
+        "401":
+          description: Authentication required
+  /newsletter:
+    post:
+      operationId: subscribeNewsletter
+      tags: [membership]
+      summary: Subscribe an email to product updates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewsletterInput"
+      responses:
+        "201":
+          description: Newsletter subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsletterSubscription"
+        "400":
+          description: Invalid email
+  /wholesale-applications:
+    post:
+      operationId: submitWholesaleApplication
+      tags: [membership]
+      summary: Submit a wholesale or affiliate application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WholesaleApplicationInput"
+      responses:
+        "201":
+          description: Wholesale application received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WholesaleApplicationReceipt"
+        "400":
+          description: Invalid wholesale application
+  /loyalty:
+    get:
+      operationId: getLoyalty
+      tags: [membership]
+      summary: Get demo loyalty account summary
+      responses:
+        "200":
+          description: Loyalty summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoyaltySummary"
+        "401":
+          description: Authentication required
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Auth status resolved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the OIDC authorization endpoint
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      responses:
+        "302":
+          description: Redirect to the return path after login
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the browser session and begin OIDC logout
+      responses:
+        "302":
+          description: Redirect to the OIDC logout endpoint
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileTokenExchangeRequest"
+      responses:
+        "200":
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileTokenExchangeSuccess"
+        "400":
+          description: Missing or invalid required fields
+        "401":
+          description: Token did not contain usable claims
+        "500":
+          description: Token exchange failed
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Clear a mobile session
+      responses:
+        "200":
+          description: Session cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutSuccess"
+  /admin/products/{id}:
+    patch:
+      operationId: updateProduct
+      tags: [admin]
+      summary: Update product inventory or availability
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: Product not found
+  /admin/checkout-intents/recovery:
+    get:
+      operationId: listRecoveryCheckoutIntents
+      tags: [admin]
+      summary: List checkout intents requiring operator recovery
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Checkout intents that could not be finalized automatically
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecoveryCheckoutIntent"
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+  /admin/checkout-intents/{id}/resolve:
+    post:
+      operationId: resolveCheckoutIntent
+      tags: [admin]
+      summary: Mark a recovery checkout intent resolved
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutIntentResolution"
+      responses:
+        "200":
+          description: Resolved checkout intent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryCheckoutIntent"
+        "400":
+          description: Invalid resolution
+        "401":
+          description: Authentication required
+        "403":
+          description: Administrator access required
+        "404":
+          description: Checkout intent not found
+        "409":
+          description: Checkout intent is not awaiting recovery
+components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token in the form Bearer sid.
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema:
+        type: string
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Product:
+      type: object
+      required:
+        [
+          id,
+          name,
+          type,
+          potency,
+          description,
+          strainType,
+          lineage,
+          effects,
+          flavorNotes,
+          color,
+          stock,
+          status,
+          imageDisclaimer,
+          sizes,
+        ]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [rosin, flower] }
+        potency: { type: number }
+        description: { type: string }
+        strainType: { type: string }
+        lineage: { type: string }
+        effects:
+          type: array
+          items: { type: string }
+        flavorNotes:
+          type: array
+          items: { type: string }
+        referenceLabel: { type: string }
+        referenceUrl: { type: string }
+        color: { type: string }
+        stock: { type: number, minimum: 0 }
+        status: { type: string, enum: [available, coming_soon, sold_out] }
+        imageDisclaimer: { type: string }
+        sizes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductSize"
+    ProductSize:
+      type: object
+      required: [grams, price]
+      properties:
+        grams: { type: number }
+        price: { type: number }
+    Review:
+      type: object
+      required: [id, productId, productName, reviewerName, rating, text, createdAt]
+      properties:
+        id: { type: string }
+        productId: { type: string }
+        productName: { type: string }
+        reviewerName: { type: string }
+        rating: { type: number, minimum: 1, maximum: 5 }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+    ReviewInput:
+      type: object
+      required: [token, reviewerName, rating, text]
+      properties:
+        token: { type: string, minLength: 20, maxLength: 300 }
+        reviewerName: { type: string, minLength: 2, maxLength: 80 }
+        rating: { type: number, minimum: 1, maximum: 5 }
+        text: { type: string, minLength: 10, maxLength: 2000 }
+    ReviewClaimInput:
+      type: object
+      required: [orderNumber, email]
+      properties:
+        orderNumber: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: string, minLength: 3, maxLength: 320 }
+    ReviewClaimLink:
+      type: object
+      required: [productId, productName, token, reviewUrl, expiresAt]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        token: { type: string }
+        reviewUrl: { type: string }
+        expiresAt: { type: string, format: date-time }
+    ReviewClaimResponse:
+      type: object
+      required: [claims]
+      properties:
+        claims:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewClaimLink"
+    StorefrontSummary:
+      type: object
+      required:
+        [heroEyebrow, heroTitle, heroDescription, activeDrop, membersMessage]
+      properties:
+        heroEyebrow: { type: string }
+        heroTitle: { type: string }
+        heroDescription: { type: string }
+        activeDrop: { type: string }
+        membersMessage: { type: string }
+    OrderInput:
+      type: object
+      required:
+        [items, subtotal, guestCheckout, ageVerified, jurisdictionConfirmed]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderItemInput"
+        subtotal: { type: number, minimum: 0 }
+        guestCheckout: { type: boolean }
+        ageVerified: { type: boolean }
+        jurisdictionConfirmed: { type: boolean }
+    OrderItemInput:
+      type: object
+      required: [productId, grams, quantity]
+      properties:
+        productId: { type: string }
+        grams: { type: number }
+        quantity: { type: number, minimum: 1 }
+    Order:
+      type: object
+      required: [id, status, message, checkoutUrl]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [checkout_ready, blocked] }
+        message: { type: string }
+        checkoutUrl: { type: string }
+    OrderHistoryItem:
+      type: object
+      required: [id, status, subtotal, createdAt, items]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [checkout_ready, blocked] }
+        subtotal: { type: number, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderHistoryLineItem"
+    OrderHistoryLineItem:
+      type: object
+      required: [productId, productName, grams, quantity, unitPrice]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        grams: { type: number }
+        quantity: { type: number, minimum: 1 }
+        unitPrice: { type: number, minimum: 0 }
+    NewsletterInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string }
+    NewsletterSubscription:
+      type: object
+      required: [id, email, status]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        status: { type: string, enum: [subscribed] }
+    WholesaleApplicationInput:
+      type: object
+      required:
+        [
+          businessName,
+          businessType,
+          license,
+          contactName,
+          email,
+          phone,
+          location,
+          interest,
+          volume,
+        ]
+      properties:
+        businessName: { type: string, minLength: 1, maxLength: 200 }
+        businessType: { type: string, minLength: 1, maxLength: 80 }
+        license: { type: string, minLength: 1, maxLength: 160 }
+        contactName: { type: string, minLength: 1, maxLength: 200 }
+        email: { type: string, minLength: 3, maxLength: 320 }
+        phone: { type: string, minLength: 1, maxLength: 80 }
+        location: { type: string, minLength: 1, maxLength: 300 }
+        interest: { type: string, minLength: 1, maxLength: 80 }
+        volume: { type: string, minLength: 1, maxLength: 300 }
+        message: { type: string, maxLength: 2000 }
+    WholesaleApplicationReceipt:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [received] }
+    LoyaltySummary:
+      type: object
+      required: [points, dollarsToNextReward, rewardMessage]
+      properties:
+        points: { type: number }
+        dollarsToNextReward: { type: number }
+        rewardMessage: { type: string }
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id: { type: string }
+        email: { type: [string, "null"] }
+        firstName: { type: [string, "null"] }
+        lastName: { type: [string, "null"] }
+        profileImageUrl: { type: [string, "null"] }
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code: { type: string, minLength: 1 }
+        code_verifier: { type: string, minLength: 1 }
+        redirect_uri: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
+        nonce: { type: string, minLength: 1 }
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, const: true }
+    ProductUpdate:
+      type: object
+      properties:
+        stock: { type: number, minimum: 0 }
+        status: { type: string, enum: [available, coming_soon, sold_out] }
+    CheckoutIntentRequestedItem:
+      type: object
+      required: [productId, grams, quantity]
+      properties:
+        productId: { type: string }
+        grams: { type: number }
+        quantity: { type: number, minimum: 1 }
+    RecoveryCheckoutIntent:
+      type: object
+      required:
+        [
+          id,
+          status,
+          shopifyCartId,
+          checkoutUrl,
+          error,
+          requestedItems,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [recovery_required, resolved] }
+        shopifyCartId: { type: [string, "null"] }
+        checkoutUrl: { type: [string, "null"] }
+        error: { type: [string, "null"] }
+        requestedItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/CheckoutIntentRequestedItem"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CheckoutIntentResolution:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum: [order_confirmed, cart_confirmed, cart_abandoned]
+        note:
+          type: string
+          maxLength: 1000

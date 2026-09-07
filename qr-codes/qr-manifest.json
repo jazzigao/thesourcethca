@@ -1,0 +1,13 @@
+{
+  "website": {
+    "label": "The Source website",
+    "url": "https://thesourcerosin.store",
+    "file": "website-qr.png"
+  },
+  "mobile": {
+    "label": "The Source mobile web app",
+    "url": "https://solventless-rosin-store.replit.app/mobile/",
+    "file": "mobile-app-qr.png"
+  },
+  "generatedFor": "The Source"
+}
